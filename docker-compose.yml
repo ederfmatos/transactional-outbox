@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3.13-management
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  mongo:
+    image: candis/mongo-replica-set
+    ports:
+      - "27017:27017"
+      - "27018:27018"
+      - "27019:27019"
+
+  localstack:
+    container_name: localstack
+    image: localstack/localstack:latest
+    restart: unless-stopped
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=dynamodb,dynamodbstreams
+      - HOSTNAME=localstack
+      - HOSTNAME_EXTERNAL=localstack
+      - DEFAULT_REGION=us-east-1
+
+  aws-cli-dynamodb:
+    container_name: aws-cli-dynamodb
+    image: amazon/aws-cli
+    depends_on:
+      - localstack
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    entrypoint: /bin/sh -c
+    command: >
+      "
+        until curl -s http://localstack:4566; do sleep 1; done;
+        aws --endpoint-url=http://localstack:4566 dynamodb create-table --table-name outbox_events --attribute-definitions AttributeName=id,AttributeType=S AttributeName=status,AttributeType=S --key-schema AttributeName=id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 --global-secondary-indexes '[{\"IndexName\":\"StatusIndex\", \"KeySchema\": [{\"AttributeName\":\"status\",\"KeyType\":\"HASH\"}], \"Projection\": {\"ProjectionType\":\"ALL\"}, \"ProvisionedThroughput\": {\"ReadCapacityUnits\": 5, \"WriteCapacityUnits\": 5}}]' --stream-specification StreamEnabled=true,StreamViewType=NEW_IMAGE --region us-east-1
+      "
