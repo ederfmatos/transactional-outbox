@@ -8,7 +8,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log/slog"
 )
 
 const (
@@ -25,8 +24,8 @@ const (
 )
 
 func main() {
-	outboxRepository, outboxStream := mongoOutbox()
 	eventEmitter := NewRabbitMqEventEmitter(RabbitMqServer)
+	outboxRepository, outboxStream := dynamoOutbox()
 	outboxHandler := NewOutboxHandler(outboxRepository, eventEmitter)
 
 	events, err := outboxStream.FetchEvents()
@@ -39,7 +38,6 @@ func main() {
 		if err != nil {
 			continue
 		}
-		slog.Info("Processing event", "id", outbox.Id)
 		outboxHandler.Handle(outbox)
 	}
 }

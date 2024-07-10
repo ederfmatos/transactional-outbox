@@ -66,6 +66,8 @@ func (stream *DynamoStream) processShard(shardID string, events chan<- string, s
 	}
 
 	ShardIterator := shardIteratorOutput.ShardIterator
+	backoff := time.Second
+
 	for {
 		getRecordsInput := &dynamodbstreams.GetRecordsInput{ShardIterator: ShardIterator}
 		records, err := stream.dynamoStreamClient.GetRecords(getRecordsInput)
@@ -77,16 +79,23 @@ func (stream *DynamoStream) processShard(shardID string, events chan<- string, s
 			id := record.Dynamodb.NewImage["id"].S
 			status := record.Dynamodb.NewImage["status"].S
 			if *record.EventName == "INSERT" {
+				backoff = time.Second
 				events <- *id
 			} else if *record.EventName == "MODIFY" && *status == "ERROR" {
-				go func() {
+				backoff = time.Second
+				go func(id string) {
 					time.Sleep(5 * time.Second)
-					events <- *id
-				}()
+					events <- id
+				}(*id)
 			}
 		}
 		ShardIterator = records.NextShardIterator
+		time.Sleep(backoff)
 
-		time.Sleep(5 * time.Second)
+		if backoff < 30*time.Second {
+			backoff *= 2
+		} else {
+			backoff = 30 * time.Second
+		}
 	}
 }

@@ -29,7 +29,7 @@ const (
 )
 
 func main() {
-	outboxRepository := dynamoOutboxRepository()
+	outboxRepository := mongoOutboxRepository()
 	outboxEventEmitter := events.NewOutboxEventEmitter(outboxRepository)
 	paymentGateway := &gateway.VisaPaymentGateway{}
 	processPayment := process_payment.New(outboxEventEmitter, paymentGateway)
